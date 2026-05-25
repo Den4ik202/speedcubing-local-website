@@ -1,0 +1,29 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="card shadow-sm">
+    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <h4 class="mb-0">Список соревнований</h4>
+        <a href="/" class="btn btn-light btn-sm">На главную</a>
+    </div>
+    <div class="card-body">
+        {% if comps %}
+        <div class="list-group">
+            {% for comp in comps %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1">{{ comp.name }}</h5>
+                    <small class="text-muted">{{ comp.start | replace('T', ' ') }} — {{ comp.address }}</small>
+                </div>
+                <div>
+                    <a href="/competition/form?id={{ comp.id }}" class="btn btn-outline-primary btn-sm me-2">Изменить</a>
+                    <a href="/competition/manage/{{ comp.id }}" class="btn btn-success btn-sm">Войти в соревнование</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-center text-muted my-4">Соревнований пока нет. Создайте первое!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

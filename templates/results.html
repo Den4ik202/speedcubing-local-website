@@ -1,0 +1,284 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>{{ comp.name }} — {{ discipline }}</h2>
+    <a href="/competition/manage/{{ comp.id }}" class="btn btn-outline-secondary">Назад к соревнованию</a>
+</div>
+
+<div class="row">
+    <div class="col-md-5 mb-4">
+        <div class="card shadow-sm border-dark">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Ввод результатов</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4 position-relative">
+                    <label class="form-label fw-bold">ФИО Участника</label>
+                    <input type="text" id="part_search" class="form-control form-control-lg border-primary" placeholder="Поиск по участникам..." autocomplete="off">
+                    <div id="autocomplete-list" class="autocomplete-items"></div>
+                </div>
+
+                <form id="resultsForm" class="d-none">
+                    <input type="hidden" id="part_id">
+                    <h6 id="selected_fio" class="text-primary mb-3"></h6>
+                    
+                    <div class="row g-2 mb-4">
+                        {% for i in range(1, 6) %}
+                        <div class="col-12 d-flex align-items-center">
+                            <span class="fs-5 me-2 fw-bold text-muted">{{ i }}.</span>
+                            <input type="text" id="attempt_{{ i }}" class="form-control form-control-lg attempt-input" placeholder="Введите числа..." autocomplete="off">
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="button" class="btn btn-success btn-lg" onclick="saveResults()">Сохранить (или Enter на 5 поле)</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-7 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Таблица лидеров</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0 text-center align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>#</th>
+                                <th class="text-start">Участник</th>
+                                <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>
+                                <th class="text-primary">SINGLE</th>
+                                <th class="text-success">AVG5</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in leaderboard %}
+                            <tr>
+                                <td class="fw-bold">{{ r.rank }}</td>
+                                <td class="text-start">{{ r.fio }}</td>
+                                {% for a in r.attempts %}
+                                <td style="font-size: 0.85em;">{{ a }}</td>
+                                {% endfor %}
+                                <td class="fw-bold text-primary">{{ r.single }}</td>
+                                <td class="fw-bold text-success">{{ r.avg5 }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="9" class="text-muted py-4">Результатов пока нет</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // 1. Автокомплит участников (Остается без изменений)
+    const compParticipants = {{ participants | tojson }};
+    const searchInput = document.getElementById("part_search");
+    const autocompleteList = document.getElementById("autocomplete-list");
+    const resultsForm = document.getElementById("resultsForm");
+
+    let currentFocus = -1;
+    let filteredData = [];
+
+    searchInput.addEventListener("input", function() {
+        let val = this.value.toLowerCase();
+        closeAllLists();
+        if (!val) {
+            resultsForm.classList.add("d-none");
+            return false;
+        }
+        currentFocus = -1;
+        filteredData = compParticipants.filter(p => p.fio.toLowerCase().includes(val));
+
+        filteredData.forEach((p, index) => {
+            let b = document.createElement("DIV");
+            b.innerHTML = p.fio;
+            b.setAttribute("data-index", index);
+            b.addEventListener("click", function() {
+                selectParticipant(filteredData[this.getAttribute("data-index")]);
+            });
+            autocompleteList.appendChild(b);
+        });
+    });
+
+    searchInput.addEventListener("keydown", function(e) {
+        let x = autocompleteList.getElementsByTagName("div");
+        if (e.key === "ArrowDown") { currentFocus++; addActive(x); }
+        else if (e.key === "ArrowUp") { currentFocus--; addActive(x); }
+        else if (e.key === "Enter") {
+            e.preventDefault();
+            if (currentFocus > -1 && x[currentFocus]) x[currentFocus].click();
+            else if (filteredData.length === 1) selectParticipant(filteredData[0]);
+        }
+    });
+
+    function addActive(x) {
+        if (!x) return false;
+        removeActive(x);
+        if (currentFocus >= x.length) currentFocus = 0;
+        if (currentFocus < 0) currentFocus = (x.length - 1);
+        x[currentFocus].classList.add("autocomplete-active");
+    }
+    function removeActive(x) { for (let i = 0; i < x.length; i++) x[i].classList.remove("autocomplete-active"); }
+    function closeAllLists() { autocompleteList.innerHTML = ""; }
+
+    // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ "УМНОГО" ВВОДА
+    function formatRaw(raw) {
+        if (!raw) return "";
+        if (raw === "DNF" || raw === "DNS") return raw;
+
+        // Сдвиг справа налево
+        let msStr = raw.slice(-3).padStart(3, '0');
+        let secStr = raw.slice(-5, -3);
+        let minStr = raw.slice(0, -5);
+
+        let sec = secStr ? parseInt(secStr, 10) : 0;
+        let min = minStr ? parseInt(minStr, 10) : 0;
+
+        return `${min} м ${sec} с ${msStr} мс`;
+    }
+
+    function getRawFromFormatted(val) {
+        if (!val) return "";
+        if (val === "DNF" || val === "DNS") return val;
+
+        let match = val.match(/(\d+)\s*м\s*(\d+)\s*с\s*(\d+)\s*мс/);
+        if (match) {
+            let m = parseInt(match[1], 10);
+            let s = parseInt(match[2], 10);
+            let ms = parseInt(match[3], 10);
+
+            let raw = "";
+            if (m > 0) raw = m.toString() + s.toString().padStart(2, '0') + ms.toString().padStart(3, '0');
+            else if (s > 0) raw = s.toString() + ms.toString().padStart(3, '0');
+            else raw = ms.toString();
+            return raw;
+        }
+        return "";
+    }
+
+    // 2. Выбор участника и подгрузка старых результатов
+    window.selectParticipant = function(p) {
+        document.getElementById("part_id").value = p.id;
+        document.getElementById("selected_fio").innerText = "Результаты: " + p.fio;
+        searchInput.value = "";
+        closeAllLists();
+        resultsForm.classList.remove("d-none");
+
+        fetch(`/api/competition/{{ comp.id }}/results/{{ discipline }}/participant/${p.id}`)
+            .then(res => res.json())
+            .then(data => {
+                for(let i=1; i<=5; i++) {
+                    let input = document.getElementById(`attempt_${i}`);
+                    let val = data.attempts[i-1] || "";
+                    input.value = val;
+                    // Сохраняем "сырые" цифры в память поля
+                    input.dataset.raw = getRawFromFormatted(val);
+                }
+                document.getElementById("attempt_1").focus();
+            });
+    };
+
+    // 3. Умная логика полей ввода (Перехват клавиатуры)
+    const inputs = document.querySelectorAll(".attempt-input");
+
+    inputs.forEach((input, index) => {
+        // Чтобы курсор всегда визуально был в конце
+        input.addEventListener("click", function() {
+            this.selectionStart = this.selectionEnd = this.value.length;
+        });
+
+        input.addEventListener("keydown", function(e) {
+            // Разрешаем системные кнопки (Tab, стрелки)
+            if (['Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+            // Разрешаем перезагрузку страницы и консоль
+            if (e.ctrlKey || e.metaKey || e.altKey || e.key.startsWith('F')) return;
+
+            e.preventDefault(); // Полностью перехватываем ввод
+
+            let raw = this.dataset.raw || "";
+
+            if (e.key === "Enter") {
+                if (index < 4) inputs[index + 1].focus();
+                else saveResults();
+                return;
+            }
+
+            if (e.key === 'Backspace') {
+                if (raw === 'DNF' || raw === 'DNS') raw = "";
+                else raw = raw.slice(0, -1);
+            }
+            else if (e.key === 'Delete') {
+                raw = "";
+            }
+            // Если нажата D или F — ставим DNF и прыгаем дальше
+            else if (e.key.toLowerCase() === 'd' || e.key.toLowerCase() === 'f') {
+                raw = 'DNF';
+                this.dataset.raw = raw;
+                this.value = 'DNF';
+                if (index < 4) inputs[index + 1].focus();
+                else saveResults();
+                return;
+            }
+            // Если нажата S — ставим DNS и прыгаем дальше
+            else if (e.key.toLowerCase() === 's') {
+                raw = 'DNS';
+                this.dataset.raw = raw;
+                this.value = 'DNS';
+                if (index < 4) inputs[index + 1].focus();
+                else saveResults();
+                return;
+            }
+            // Если нажата цифра
+            else if (/^\d$/.test(e.key)) {
+                if (raw === 'DNF' || raw === 'DNS') raw = "";
+                if (raw.length < 7) { // Ограничиваем длину (макс. десятки минут)
+                    raw += e.key;
+                }
+            }
+
+            // Убираем нули в начале, чтобы они не копились, и обновляем поле
+            raw = raw.replace(/^0+/, '');
+            this.dataset.raw = raw;
+            this.value = formatRaw(raw);
+        });
+    });
+
+    // 4. Сохранение результатов
+    window.saveResults = function() {
+        let attempts = [];
+        inputs.forEach(input => {
+            attempts.push(input.value);
+        });
+
+        const payload = {
+            part_id: document.getElementById("part_id").value,
+            attempts: attempts
+        };
+
+        fetch(`/api/competition/{{ comp.id }}/results/{{ discipline }}/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                location.reload();
+            }
+        });
+    };
+});
+</script>
+{% endblock %}

@@ -1,0 +1,29 @@
+/* Контейнер списка подсказок */
+.autocomplete-items {
+    position: absolute;
+    border: 1px solid #d4d4d4;
+    border-bottom: none;
+    border-top: none;
+    z-index: 99;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #fff;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border-radius: 0 0 4px 4px;
+}
+
+/* Элементы подсказок */
+.autocomplete-items div {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #d4d4d4;
+}
+
+/* При наведении мыши или выборе стрелочками */
+.autocomplete-items div:hover, .autocomplete-active {
+    background-color: #e9e9e9;
+    color: #000;
+}

@@ -1,0 +1,172 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Соревнование: {{ comp.name }}</h2>
+    <a href="/competitions" class="btn btn-outline-secondary">Назад к списку</a>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Участники соревнования</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-4 position-relative">
+                    <label class="form-label fw-bold">Добавить участника (введите ФИО и нажмите Enter):</label>
+                    <input type="text" id="part_search" class="form-control" placeholder="Поиск по базе данных..." autocomplete="off">
+                    <div id="autocomplete-list" class="autocomplete-items"></div>
+                </div>
+
+                <h6 class="fw-bold">Зарегистрированы: <span class="badge bg-secondary">{{ participants|length }}</span></h6>
+                <div class="list-group" id="participants-list">
+                    {% for p in participants %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ p.fio }}
+                        <button class="btn btn-danger btn-sm" onclick="removeParticipant('{{ p.id }}')">Удалить</button>
+                    </div>
+                    {% else %}
+                    <div class="text-muted small">Пока нет ни одного участника.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Дисциплины (Ввод результатов)</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    {% for d in disciplines %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="fs-5">{{ d }}</span>
+                        <a href="/competition/{{ comp.id }}/results/{{ d }}" class="btn btn-dark">Ввод результатов</a>
+                    </div>
+                    {% else %}
+                    <div class="text-muted small">Дисциплины не добавлены. Измените соревнование.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const searchInput = document.getElementById("part_search");
+    const autocompleteList = document.getElementById("autocomplete-list");
+    const compId = "{{ comp.id }}";
+
+    let currentFocus = -1;
+    let serverData = [];
+
+    // Логика автокомплита (похожая на Шаг 2)
+    searchInput.addEventListener("input", function() {
+        let val = this.value;
+        closeAllLists();
+        if (!val) return false;
+        currentFocus = -1;
+
+        fetch(`/api/participants/search?q=${encodeURIComponent(val)}`)
+            .then(response => response.json())
+            .then(data => {
+                serverData = data;
+                serverData.forEach((participant, index) => {
+                    let b = document.createElement("DIV");
+                    b.innerHTML = participant.fio;
+                    b.setAttribute("data-index", index);
+                    b.addEventListener("click", function() {
+                        addParticipantToComp(serverData[this.getAttribute("data-index")].id);
+                    });
+                    autocompleteList.appendChild(b);
+                });
+            });
+    });
+
+    searchInput.addEventListener("keydown", function(e) {
+        let x = autocompleteList.getElementsByTagName("div");
+        if (e.keyCode === 40) { // ВНИЗ
+            currentFocus++;
+            addActive(x);
+        } else if (e.keyCode === 38) { // ВВЕРХ
+            currentFocus--;
+            addActive(x);
+        } else if (e.keyCode === 13) { // ENTER
+            e.preventDefault();
+            if (currentFocus > -1 && x[currentFocus]) {
+                x[currentFocus].click();
+            } else {
+                // Если просто нажат Enter, проверяем есть ли точное совпадение
+                let exactMatch = serverData.find(p => p.fio.toLowerCase() === searchInput.value.toLowerCase().trim());
+                if (exactMatch) {
+                    addParticipantToComp(exactMatch.id);
+                } else {
+                    alert("Участник не найден в базе. Сначала создайте его в главном меню.");
+                }
+            }
+        }
+    });
+
+    function addActive(x) {
+        if (!x) return false;
+        removeActive(x);
+        if (currentFocus >= x.length) currentFocus = 0;
+        if (currentFocus < 0) currentFocus = (x.length - 1);
+        x[currentFocus].classList.add("autocomplete-active");
+    }
+
+    function removeActive(x) {
+        for (let i = 0; i < x.length; i++) {
+            x[i].classList.remove("autocomplete-active");
+        }
+    }
+
+    function closeAllLists() {
+        autocompleteList.innerHTML = "";
+    }
+
+    document.addEventListener("click", function (e) {
+        if (e.target !== searchInput) closeAllLists();
+    });
+
+    // Функция отправки запроса на добавление
+    window.addParticipantToComp = function(part_id) {
+        fetch(`/api/competition/${compId}/add_participant`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ part_id: part_id })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                location.reload(); // Перезагружаем страницу для обновления списка
+            } else {
+                alert("Участник уже добавлен в это соревнование!");
+                searchInput.value = "";
+                closeAllLists();
+            }
+        });
+    };
+
+    // Функция отправки запроса на удаление
+    window.removeParticipant = function(part_id) {
+        if (confirm("Точно удалить участника из соревнования?")) {
+            fetch(`/api/competition/${compId}/remove_participant`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ part_id: part_id })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            });
+        }
+    };
+});
+</script>
+{% endblock %}

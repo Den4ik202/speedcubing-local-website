@@ -1,0 +1,13 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height: 60vh;">
+    <div class="col-md-6 text-center">
+        <h2 class="mb-4">Главное меню</h2>
+        <div class="d-grid gap-3">
+            <a href="/participants" class="btn btn-primary btn-lg py-3">Участники (добавить/изменить)</a>
+            <a href="/competitions" class="btn btn-success btn-lg py-3">Выбрать соревнование</a>
+            <a href="/competition/form" class="btn btn-secondary btn-lg py-3">Создать соревнование</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

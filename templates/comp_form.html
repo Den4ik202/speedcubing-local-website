@@ -1,0 +1,184 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div class="row justify-content-center mb-5">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{{ 'Изменение' if comp else 'Создание' }} соревнования</h4>
+                <a href="/" class="btn btn-light btn-sm">На главную</a>
+            </div>
+            <div class="card-body">
+                <form id="compForm">
+                    <input type="hidden" id="comp_id" value="{{ comp.id if comp else '' }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Название соревнования</label>
+                        <input type="text" id="name" class="form-control" value="{{ comp.name if comp else '' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Адрес проведения</label>
+                        <input type="text" id="address" class="form-control" value="{{ comp.address if comp else '' }}" required>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Дата начала (с временем)</label>
+                            <input type="datetime-local" id="start_date" class="form-control" value="{{ comp.start if comp else '' }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Дата конца (с временем)</label>
+                            <input type="datetime-local" id="end_date" class="form-control" value="{{ comp.end if comp else '' }}" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Общая информация</label>
+                        <textarea id="info" class="form-control" rows="3">{{ comp.info if comp else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-4 p-3 border rounded bg-light">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label mb-0 fw-bold">Дисциплины</label>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="openDiscModal()">+ Добавить дисциплину</button>
+                        </div>
+                        <div id="disciplines-container" class="d-flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg">Сохранить соревнование</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="discModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Добавление дисциплины</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Выберите из базовых:</label>
+                    <select id="base_disc" class="form-select" onchange="checkCustomDisc()">
+                        <option value="">-- Выберите --</option>
+                        <option value="3x3x3">3x3x3</option>
+                        <option value="2x2x2">2x2x2</option>
+                        <option value="4x4x4">4x4x4</option>
+                        <option value="Мегаминкс">Мегаминкс</option>
+                        <option value="Пира">Пира</option>
+                        <option value="Клок">Клок</option>
+                        <option value="Скьюб">Скьюб</option>
+                        <option value="custom">Свой вариант...</option>
+                    </select>
+                </div>
+                <div class="mb-3 d-none" id="custom_disc_block">
+                    <label class="form-label">Впишите свою дисциплину:</label>
+                    <input type="text" id="custom_disc" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="addDiscipline()">Добавить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Загружаем дисциплины, если мы находимся в режиме "Изменить"
+    let disciplines = "{{ comp.disciplines if comp else '' }}".split(',').map(s => s.trim()).filter(s => s);
+    const container = document.getElementById('disciplines-container');
+    const discModal = new bootstrap.Modal(document.getElementById('discModal'));
+
+    // Отрисовка списка дисциплин
+    function renderDisciplines() {
+        container.innerHTML = '';
+        if (disciplines.length === 0) {
+            container.innerHTML = '<span class="text-muted">Нет дисциплин</span>';
+            return;
+        }
+        disciplines.forEach((d, index) => {
+            const badge = document.createElement('div');
+            badge.className = 'badge bg-primary d-flex align-items-center p-2 fs-6';
+            badge.innerHTML = `
+                ${d} 
+                <button type="button" class="btn-close btn-close-white ms-2" style="font-size: 0.5rem;" onclick="removeDiscipline(${index})"></button>
+            `;
+            container.appendChild(badge);
+        });
+    }
+
+    function openDiscModal() {
+        document.getElementById('base_disc').value = '';
+        document.getElementById('custom_disc').value = '';
+        document.getElementById('custom_disc_block').classList.add('d-none');
+        discModal.show();
+    }
+
+    function checkCustomDisc() {
+        const val = document.getElementById('base_disc').value;
+        if (val === 'custom') {
+            document.getElementById('custom_disc_block').classList.remove('d-none');
+        } else {
+            document.getElementById('custom_disc_block').classList.add('d-none');
+        }
+    }
+
+    function addDiscipline() {
+        const selectVal = document.getElementById('base_disc').value;
+        let newDisc = '';
+        
+        if (selectVal === 'custom') {
+            newDisc = document.getElementById('custom_disc').value.trim();
+        } else if (selectVal !== '') {
+            newDisc = selectVal;
+        }
+
+        if (newDisc && !disciplines.includes(newDisc)) {
+            disciplines.push(newDisc);
+            renderDisciplines();
+            discModal.hide();
+        }
+    }
+
+    function removeDiscipline(index) {
+        disciplines.splice(index, 1);
+        renderDisciplines();
+    }
+
+    // Сохранение всей формы
+    document.getElementById('compForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const payload = {
+            id: document.getElementById('comp_id').value,
+            name: document.getElementById('name').value,
+            address: document.getElementById('address').value,
+            start: document.getElementById('start_date').value,
+            end: document.getElementById('end_date').value,
+            info: document.getElementById('info').value,
+            disciplines: disciplines
+        };
+
+        fetch('/api/competition/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Перебрасываем на главный экран при успехе
+                window.location.href = '/';
+            }
+        });
+    });
+
+    // Отрисовываем при старте страницы
+    renderDisciplines();
+</script>
+{% endblock %}
